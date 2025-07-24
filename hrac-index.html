@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hra Mapa - Hráč</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #mapa { width: 100vw; height: 100vh; background: url('mapa.png') no-repeat center center; background-size: contain; position: relative; }
+        .bod { width: 32px; height: 32px; position: absolute; }
+    </style>
+</head>
+<body>
+    <div id="mapa"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCEq2j2FUqRXDazNKstJY9ZmrrJZm6uQHc",
+            authDomain: "st-hra-cd434.firebaseapp.com",
+            databaseURL: "https://st-hra-cd434-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "st-hra-cd434",
+            storageBucket: "st-hra-cd434.firebasestorage.app",
+            messagingSenderId: "146462036985",
+            appId: "1:146462036985:web:3b79d238564e11c77aa328"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const bodyRef = ref(db, 'body');
+
+        const mapa = document.getElementById('mapa');
+
+        onChildAdded(bodyRef, (data) => {
+            const { x, y, typ } = data.val();
+            const bod = document.createElement('img');
+            bod.src = `${typ}.png`;
+            bod.classList.add('bod');
+            bod.style.left = `${x * 100}%`;
+            bod.style.top = `${y * 100}%`;
+            bod.dataset.key = data.key;
+            mapa.appendChild(bod);
+        });
+
+        onChildRemoved(bodyRef, (data) => {
+            const key = data.key;
+            const bod = document.querySelector(`[data-key='${key}']`);
+            if (bod) bod.remove();
+        });
+    </script>
+</body>
+</html>
