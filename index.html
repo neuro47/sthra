@@ -1,131 +1,142 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hra Mapa - Admin</title>
-    <style>
-        body { margin: 0; overflow: hidden; }
-        #mapa {
-            width: 100vw;
-            height: 100vh;
-            background: url('mapa.png') no-repeat center center;
-            background-size: contain;
-            position: relative;
-        }
-        .bod {
-            width: 32px;
-            height: 32px;
-            position: absolute;
-        }
-        #plus {
-            position: fixed;      /* FIXNUTÉ tlačítko vůči oknu */
-            top: 10px;
-            left: 10px;          /* vlevo nahoře */
-            width: 50px;
-            height: 50px;
-            background: #0f0;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 30px;
-            cursor: pointer;
-            z-index: 9999;        /* aby bylo nad vším */
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hra Mapa - Admin s přiblížením</title>
+<style>
+  body, html {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+  }
+  #mapa {
+    width: 100vw;
+    height: 100vh;
+    background: url('mapa.png') no-repeat center center;
+    background-size: contain;
+    position: relative;
+    transform-origin: top left;
+    transition: transform 0.3s ease;
+  }
+  .bod {
+    width: 32px; height: 32px;
+    position: absolute;
+  }
+  #plus {
+    position: fixed; /* pevné vůči oknu */
+    top: 10px;
+    left: 10px;
+    width: 50px;
+    height: 50px;
+    background: #0f0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    cursor: pointer;
+    z-index: 9999;
+  }
+</style>
 </head>
 <body>
-    <div id="mapa"></div>
-    <div id="plus">+</div>
+  <div id="mapa"></div>
+  <div id="plus">+</div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCEq2j2FUqRXDazNKstJY9ZmrrJZm6uQHc",
-            authDomain: "st-hra-cd434.firebaseapp.com",
-            databaseURL: "https://st-hra-cd434-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "st-hra-cd434",
-            storageBucket: "st-hra-cd434.firebasestorage.app",
-            messagingSenderId: "146462036985",
-            appId: "1:146462036985:web:3b79d238564e11c77aa328"
-        };
+const firebaseConfig = {
+  apiKey: "AIzaSyCEq2j2FUqRXDazNKstJY9ZmrrJZm6uQHc",
+  authDomain: "st-hra-cd434.firebaseapp.com",
+  databaseURL: "https://st-hra-cd434-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "st-hra-cd434",
+  storageBucket: "st-hra-cd434.firebasestorage.app",
+  messagingSenderId: "146462036985",
+  appId: "1:146462036985:web:3b79d238564e11c77aa328"
+};
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const bodyRef = ref(db, 'body');
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const bodyRef = ref(db, 'body');
 
-        const mapa = document.getElementById('mapa');
-        const plus = document.getElementById('plus');
+const mapa = document.getElementById('mapa');
+const plus = document.getElementById('plus');
 
-        let addingMode = false;
+let addingMode = false;
+let scale = 1;
 
-        plus.addEventListener('click', () => {
-            addingMode = true;
-            plus.style.background = '#ff0';
-        });
+plus.addEventListener('click', () => {
+  addingMode = true;
+  plus.style.background = '#ff0';
+});
 
-        mapa.addEventListener('click', (e) => {
-            if (!addingMode) return;
+mapa.addEventListener('click', (e) => {
+  if (!addingMode) return;
 
-            const rect = mapa.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = (e.clientY - rect.top) / rect.height;
+  const rect = mapa.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
 
-            const typ = prompt('Zadej typ ikony (svitilna, sirky, radio):');
-            if (typ) {
-                push(bodyRef, { x, y, typ });
-            }
+  const typ = prompt('Zadej typ ikony (svitilna, sirky, radio):');
+  if (typ) {
+    push(bodyRef, { x, y, typ });
+  }
 
-            addingMode = false;
-            plus.style.background = '#0f0';
-        });
+  addingMode = false;
+  plus.style.background = '#0f0';
+});
 
-        onChildAdded(bodyRef, (data) => {
-            const { x, y, typ } = data.val();
-            const key = data.key;
+// Přidáme možnost přiblížit mapu dvojklikem
+mapa.addEventListener('dblclick', () => {
+  scale += 0.2;
+  if (scale > 3) scale = 1;
+  mapa.style.transform = `scale(${scale})`;
+});
 
-            const bod = document.createElement('img');
-            bod.src = `${typ}.png`;
-            bod.classList.add('bod');
-            bod.style.left = `${x * 100}%`;
-            bod.style.top = `${y * 100}%`;
-            bod.dataset.key = key;
+onChildAdded(bodyRef, (data) => {
+  const { x, y, typ } = data.val();
+  const key = data.key;
 
-            let touchTimer;
+  const bod = document.createElement('img');
+  bod.src = `${typ}.png`;
+  bod.classList.add('bod');
+  bod.style.left = `${x * 100}%`;
+  bod.style.top = `${y * 100}%`;
+  bod.dataset.key = key;
 
-            bod.addEventListener('touchstart', () => {
-                touchTimer = setTimeout(() => {
-                    remove(ref(db, `body/${key}`));
-                }, 1000);
-            });
+  let touchTimer;
 
-            bod.addEventListener('touchend', () => {
-                clearTimeout(touchTimer);
-            });
+  bod.addEventListener('touchstart', () => {
+    touchTimer = setTimeout(() => {
+      remove(ref(db, `body/${key}`));
+    }, 1000);
+  });
 
-            bod.addEventListener('mousedown', (e) => {
-                if (e.button === 0) {
-                    touchTimer = setTimeout(() => {
-                        remove(ref(db, `body/${key}`));
-                    }, 1000);
-                }
-            });
+  bod.addEventListener('touchend', () => {
+    clearTimeout(touchTimer);
+  });
 
-            bod.addEventListener('mouseup', () => {
-                clearTimeout(touchTimer);
-            });
+  bod.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+      touchTimer = setTimeout(() => {
+        remove(ref(db, `body/${key}`));
+      }, 1000);
+    }
+  });
 
-            mapa.appendChild(bod);
-        });
+  bod.addEventListener('mouseup', () => {
+    clearTimeout(touchTimer);
+  });
 
-        onChildRemoved(bodyRef, (data) => {
-            const key = data.key;
-            const bod = document.querySelector(`[data-key='${key}']`);
-            if (bod) bod.remove();
-        });
-    </script>
+  mapa.appendChild(bod);
+});
+
+onChildRemoved(bodyRef, (data) => {
+  const key = data.key;
+  const bod = document.querySelector(`[data-key='${key}']`);
+  if (bod) bod.remove();
+});
+</script>
 </body>
 </html>
