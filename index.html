@@ -35,10 +35,16 @@
     user-select: none;
     touch-action: none;
   }
-  #plus {
+  #plus-container {
     position: fixed;
     top: 10px;
     left: 10px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #plus {
     width: 50px;
     height: 50px;
     background: #0f0;
@@ -48,8 +54,14 @@
     text-align: center;
     cursor: pointer;
     user-select: none;
-    z-index: 9999;
     font-weight: bold;
+  }
+  #verze {
+    font-size: 16px;
+    font-weight: bold;
+    background: rgba(255,255,255,0.8);
+    padding: 5px 10px;
+    border-radius: 8px;
   }
   #vyber-ikon {
     position: fixed;
@@ -73,6 +85,15 @@
   #vyber-ikon img:hover {
     border-color: #0a0;
   }
+  .preview-bod {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border: 2px dashed red;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 5000;
+  }
 </style>
 </head>
 <body>
@@ -81,7 +102,10 @@
   <div id="mapa"></div>
 </div>
 
-<div id="plus">+</div>
+<div id="plus-container">
+  <div id="plus">+</div>
+  <div id="verze">Verze 1.1</div>
+</div>
 
 <div id="vyber-ikon">
   <img src="svitilna.png" alt="Svitilna" data-typ="svitilna" />
@@ -112,6 +136,7 @@ const plus = document.getElementById('plus');
 const vyberIkon = document.getElementById('vyber-ikon');
 
 let addingMode = false;
+let previewBod = null;
 let lastClickPos = null;
 let scale = 1;
 let offsetX = 0;
@@ -132,6 +157,7 @@ mapa.addEventListener('touchstart', (e) => {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     mapa.dataset.startDist = Math.sqrt(dx * dx + dy * dy);
+    mapa.dataset.startScale = scale;
   }
 }, { passive: false });
 
@@ -148,14 +174,18 @@ mapa.addEventListener('touchmove', (e) => {
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const startDist = parseFloat(mapa.dataset.startDist);
-    scale = Math.min(Math.max(1, (scale * dist) / startDist), 3);
+    const startScale = parseFloat(mapa.dataset.startScale);
+    let newScale = startScale * (dist / startDist);
+    scale = Math.min(Math.max(1, newScale), 3);
     updateTransform();
   }
 }, { passive: false });
 
 plus.addEventListener('click', () => {
   addingMode = true;
-  vyberIkon.style.display = 'block';
+  previewBod?.remove();
+  lastClickPos = null;
+  alert("Klikni na mapu pro umístění bodu.");
 });
 
 mapa.addEventListener('click', (e) => {
@@ -164,6 +194,16 @@ mapa.addEventListener('click', (e) => {
   const x = (e.clientX - rect.left - offsetX) / (rect.width * scale);
   const y = (e.clientY - rect.top - offsetY) / (rect.height * scale);
   lastClickPos = { x, y };
+
+  // Zobraz dočasný bod
+  previewBod?.remove();
+  previewBod = document.createElement('div');
+  previewBod.className = 'preview-bod';
+  previewBod.style.left = (x * 100) + '%';
+  previewBod.style.top = (y * 100) + '%';
+  mapa.appendChild(previewBod);
+
+  vyberIkon.style.display = 'block';
 });
 
 vyberIkon.addEventListener('click', (e) => {
@@ -172,6 +212,8 @@ vyberIkon.addEventListener('click', (e) => {
     push(bodyRef, { x: lastClickPos.x, y: lastClickPos.y, typ: e.target.dataset.typ });
     addingMode = false;
     vyberIkon.style.display = 'none';
+    previewBod?.remove();
+    lastClickPos = null;
   }
 });
 
