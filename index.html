@@ -7,26 +7,17 @@
     <style>
         body { margin: 0; overflow: hidden; }
         #mapa { width: 100vw; height: 100vh; background: url('mapa.png') no-repeat center center; background-size: contain; position: relative; }
-        .bod { width: 32px; height: 32px; position: absolute; cursor: pointer; }
-        #plusko { position: absolute; top: 20px; left: 20px; background: white; border: 2px solid black; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; }
-        #vyberIkony { position: absolute; background: white; border: 1px solid black; display: none; padding: 10px; }
-        #vyberIkony img { width: 32px; height: 32px; margin: 5px; cursor: pointer; }
+        .bod { width: 32px; height: 32px; position: absolute; }
+        #plus { position: absolute; top: 10px; right: 10px; width: 50px; height: 50px; background: #0f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; cursor: pointer; z-index: 10; }
     </style>
 </head>
 <body>
-    <div id="mapa">
-        <div id="plusko">+</div>
-        <div id="vyberIkony">
-            <img src="svitilna.png" data-typ="svitilna">
-            <img src="sirky.png" data-typ="sirky">
-            <img src="radio.png" data-typ="radio">
-        </div>
-    </div>
+    <div id="mapa"></div>
+    <div id="plus">+</div>
 
     <script type="module">
-        // Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getDatabase, ref, onChildAdded, onChildRemoved, push, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCEq2j2FUqRXDazNKstJY9ZmrrJZm6uQHc",
@@ -43,58 +34,64 @@
         const bodyRef = ref(db, 'body');
 
         const mapa = document.getElementById('mapa');
-        const plusko = document.getElementById('plusko');
-        const vyberIkony = document.getElementById('vyberIkony');
+        const plus = document.getElementById('plus');
 
-        let pridavani = false;
-        let noveX = 0;
-        let noveY = 0;
+        let addingMode = false;
 
-        plusko.addEventListener('click', () => {
-            pridavani = true;
-            alert('Klikni na místo na mapě pro přidání bodu');
+        plus.addEventListener('click', () => {
+            addingMode = true;
+            plus.style.background = '#ff0';
         });
 
         mapa.addEventListener('click', (e) => {
-            if (!pridavani) return;
-            const rect = mapa.getBoundingClientRect();
-            noveX = (e.clientX - rect.left) / rect.width;
-            noveY = (e.clientY - rect.top) / rect.height;
-            vyberIkony.style.left = `${e.clientX}px`;
-            vyberIkony.style.top = `${e.clientY}px`;
-            vyberIkony.style.display = 'block';
-        });
+            if (!addingMode) return;
 
-        vyberIkony.addEventListener('click', (e) => {
-            if (e.target.tagName === 'IMG') {
-                const typ = e.target.dataset.typ;
-                push(bodyRef, { x: noveX, y: noveY, typ });
-                vyberIkony.style.display = 'none';
-                pridavani = false;
+            const rect = mapa.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            const typ = prompt('Zadej typ ikony (svitilna, sirky, radio):');
+            if (typ) {
+                push(bodyRef, { x, y, typ });
             }
+
+            addingMode = false;
+            plus.style.background = '#0f0';
         });
 
         onChildAdded(bodyRef, (data) => {
             const { x, y, typ } = data.val();
+            const key = data.key;
+
             const bod = document.createElement('img');
             bod.src = `${typ}.png`;
             bod.classList.add('bod');
             bod.style.left = `${x * 100}%`;
             bod.style.top = `${y * 100}%`;
-            bod.dataset.key = data.key;
+            bod.dataset.key = key;
 
-            let holdTimeout;
+            let touchTimer;
 
-            bod.addEventListener('mousedown', () => {
-                holdTimeout = setTimeout(() => {
-                    if (confirm('Chceš tento bod smazat?')) {
-                        remove(ref(db, 'body/' + data.key));
-                    }
-                }, 1500);
+            bod.addEventListener('touchstart', () => {
+                touchTimer = setTimeout(() => {
+                    remove(ref(db, `body/${key}`));
+                }, 1000);
+            });
+
+            bod.addEventListener('touchend', () => {
+                clearTimeout(touchTimer);
+            });
+
+            bod.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    touchTimer = setTimeout(() => {
+                        remove(ref(db, `body/${key}`));
+                    }, 1000);
+                }
             });
 
             bod.addEventListener('mouseup', () => {
-                clearTimeout(holdTimeout);
+                clearTimeout(touchTimer);
             });
 
             mapa.appendChild(bod);
