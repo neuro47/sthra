@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Mapa s výběrem ikon - mobil</title>
+<title>Mapa s přiblížením a tažením</title>
 <style>
   body, html {
     margin: 0; padding: 0; height: 100%;
@@ -16,6 +16,7 @@
     height: 100vh;
     overflow: hidden;
     position: relative;
+    background: #eee;
   }
   #mapa {
     width: 100%;
@@ -23,14 +24,17 @@
     background: url('mapa.png') no-repeat center center;
     background-size: contain;
     position: relative;
-    transform-origin: top left;
-    transition: transform 0.25s ease;
+    touch-action: none;
+    user-select: none;
+    transform-origin: 0 0;
+    transition: transform 0.1s ease-out;
   }
   .bod {
     position: absolute;
     width: 32px;
     height: 32px;
     user-select: none;
+    touch-action: none;
   }
   #plus {
     position: fixed;
@@ -52,7 +56,7 @@
     position: fixed;
     top: 70px;
     left: 10px;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.95);
     border: 1px solid #ccc;
     border-radius: 5px;
     display: none;
@@ -109,33 +113,121 @@ const plus = document.getElementById('plus');
 const vyberIkon = document.getElementById('vyber-ikon');
 
 let addingMode = false;
-let scale = 1;
-let lastDistance = null;
 let lastClickPos = null;
 
-// Zapnutí režimu přidávání bodu
+// Transformace mapy
+let scale = 1;
+let translateX = 0;
+let translateY = 0;
+
+let lastTouchDistance = null;
+let lastTouchMidpoint = null;
+let isDragging = false;
+let dragStart = null;
+
+function setTransform() {
+  mapa.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+}
+
+// Výpočet vzdálenosti mezi dvěma dotyky (pinch)
+function getDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Výpočet středu mezi dvěma dotyky
+function getMidpoint(touches) {
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2
+  };
+}
+
+// Ošetření doteků pro zoom a drag
+mapa.parentElement.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    lastTouchDistance = getDistance(e.touches);
+    lastTouchMidpoint = getMidpoint(e.touches);
+    isDragging = false;
+  } else if (e.touches.length === 1) {
+    dragStart = { x: e.touches[0].clientX - translateX, y: e.touches[0].clientY - translateY };
+    isDragging = true;
+  }
+}, { passive: false });
+
+mapa.parentElement.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+
+  if (e.touches.length === 2) {
+    // Pinch zoom
+    const distance = getDistance(e.touches);
+    const midpoint = getMidpoint(e.touches);
+
+    if (lastTouchDistance) {
+      const deltaDistance = distance - lastTouchDistance;
+      let newScale = scale + deltaDistance * 0.005;
+
+      if (newScale < 1) newScale = 1;
+      if (newScale > 3) newScale = 3;
+
+      // Korekce translate, aby zoomoval kolem středu pinch gest
+      const scaleChange = newScale / scale;
+      translateX = midpoint.x - scaleChange * (midpoint.x - translateX);
+      translateY = midpoint.y - scaleChange * (midpoint.y - translateY);
+
+      scale = newScale;
+      setTransform();
+    }
+    lastTouchDistance = distance;
+    lastTouchMidpoint = midpoint;
+    isDragging = false;
+  } else if (e.touches.length === 1 && isDragging) {
+    // Drag mapy jedním prstem
+    translateX = e.touches[0].clientX - dragStart.x;
+    translateY = e.touches[0].clientY - dragStart.y;
+    setTransform();
+  }
+}, { passive: false });
+
+mapa.parentElement.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2) {
+    lastTouchDistance = null;
+    lastTouchMidpoint = null;
+  }
+  if (e.touches.length === 0) {
+    isDragging = false;
+    dragStart = null;
+  }
+});
+mapa.parentElement.addEventListener('touchcancel', (e) => {
+  lastTouchDistance = null;
+  lastTouchMidpoint = null;
+  isDragging = false;
+  dragStart = null;
+});
+
+// Přidávání bodů
 plus.addEventListener('click', () => {
   addingMode = true;
   plus.style.background = '#ff0';
-  vyberIkon.style.display = 'none'; // schovej výběr ikon, než klikneš na mapu
+  vyberIkon.style.display = 'none';
 });
 
-// Klik na mapu - ukáže výběr ikon
 mapa.addEventListener('click', (e) => {
   if (!addingMode) return;
 
-  // pozice kliknutí relativně k mapě (pro přidání bodu později)
   const rect = mapa.getBoundingClientRect();
-  lastClickPos = {
-    x: (e.clientX - rect.left) / rect.width,
-    y: (e.clientY - rect.top) / rect.height
-  };
+  // Přepočítat pozici kliknutí vzhledem k transformaci mapy (posun + scale)
+  const x = (e.clientX - rect.left - translateX) / (rect.width * scale);
+  const y = (e.clientY - rect.top - translateY) / (rect.height * scale);
 
-  // zobraz výběr ikon hned u pluska (nebo můžeš upravit pozici)
+  lastClickPos = { x, y };
+
   vyberIkon.style.display = 'block';
 });
 
-// Klik na ikonu ve výběru - přidá bod do DB a schová výběr
+// Výběr ikony a přidání do DB
 vyberIkon.addEventListener('click', (e) => {
   if (e.target.tagName !== 'IMG') return;
 
@@ -149,68 +241,7 @@ vyberIkon.addEventListener('click', (e) => {
   vyberIkon.style.display = 'none';
 });
 
-// Pinch zoom pro mobil
-function getDistance(touches) {
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.sqrt(dx*dx + dy*dy);
-}
-
-mapa.parentElement.addEventListener('touchmove', (e) => {
-  if (e.touches.length === 2) {
-    e.preventDefault();
-
-    const distance = getDistance(e.touches);
-    if (lastDistance) {
-      let delta = distance - lastDistance;
-      scale += delta * 0.005;
-      if (scale < 1) scale = 1;
-      if (scale > 3) scale = 3;
-      mapa.style.transform = `scale(${scale})`;
-    }
-    lastDistance = distance;
-  }
-}, { passive: false });
-
-mapa.parentElement.addEventListener('touchend', (e) => {
-  if (e.touches.length < 2) lastDistance = null;
-});
-mapa.parentElement.addEventListener('touchcancel', (e) => {
-  lastDistance = null;
-});
-
 // Načítání a zobrazení bodů z Firebase
 onChildAdded(bodyRef, (data) => {
   const { x, y, typ } = data.val();
-  const key = data.key;
-
-  const bod = document.createElement('img');
-  bod.src = `${typ}.png`;
-  bod.classList.add('bod');
-  bod.style.left = `${x * 100}%`;
-  bod.style.top = `${y * 100}%`;
-  bod.dataset.key = key;
-
-  let timer;
-
-  // Podržení pro smazání
-  bod.addEventListener('touchstart', () => {
-    timer = setTimeout(() => {
-      remove(ref(db, `body/${key}`));
-    }, 1000);
-  });
-  bod.addEventListener('touchend', () => clearTimeout(timer));
-  bod.addEventListener('touchcancel', () => clearTimeout(timer));
-
-  mapa.appendChild(bod);
-});
-
-onChildRemoved(bodyRef, (data) => {
-  const key = data.key;
-  const bod = document.querySelector(`[data-key='${key}']`);
-  if (bod) bod.remove();
-});
-</script>
-
-</body>
-</html>
+  const key = data.key
