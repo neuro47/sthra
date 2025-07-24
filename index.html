@@ -30,10 +30,11 @@
   }
   .bod {
     position: absolute;
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     user-select: none;
     touch-action: none;
+    cursor: grab;
   }
   #plus-container {
     position: fixed;
@@ -75,8 +76,8 @@
     z-index: 10000;
   }
   #vyber-ikon img {
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
     margin: 5px;
     cursor: pointer;
     border: 2px solid transparent;
@@ -84,15 +85,6 @@
   }
   #vyber-ikon img:hover {
     border-color: #0a0;
-  }
-  .preview-bod {
-    position: absolute;
-    width: 32px;
-    height: 32px;
-    border: 2px dashed red;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 5000;
   }
 </style>
 </head>
@@ -104,7 +96,7 @@
 
 <div id="plus-container">
   <div id="plus">+</div>
-  <div id="verze">Verze 1.1</div>
+  <div id="verze">Verze 1.2</div>
 </div>
 
 <div id="vyber-ikon">
@@ -115,7 +107,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEq2j2FUqRXDazNKstJY9ZmrrJZm6uQHc",
@@ -136,8 +128,7 @@ const plus = document.getElementById('plus');
 const vyberIkon = document.getElementById('vyber-ikon');
 
 let addingMode = false;
-let previewBod = null;
-let lastClickPos = null;
+let tempIcon = null;
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
@@ -182,39 +173,56 @@ mapa.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 plus.addEventListener('click', () => {
-  addingMode = true;
-  previewBod?.remove();
-  lastClickPos = null;
-  alert("Klikni na mapu pro umístění bodu.");
-});
-
-mapa.addEventListener('click', (e) => {
-  if (!addingMode) return;
-  const rect = mapa.getBoundingClientRect();
-  const x = (e.clientX - rect.left - offsetX) / (rect.width * scale);
-  const y = (e.clientY - rect.top - offsetY) / (rect.height * scale);
-  lastClickPos = { x, y };
-
-  // Zobraz dočasný bod
-  previewBod?.remove();
-  previewBod = document.createElement('div');
-  previewBod.className = 'preview-bod';
-  previewBod.style.left = (x * 100) + '%';
-  previewBod.style.top = (y * 100) + '%';
-  mapa.appendChild(previewBod);
-
   vyberIkon.style.display = 'block';
 });
 
 vyberIkon.addEventListener('click', (e) => {
   if (e.target.tagName !== 'IMG') return;
-  if (lastClickPos) {
-    push(bodyRef, { x: lastClickPos.x, y: lastClickPos.y, typ: e.target.dataset.typ });
-    addingMode = false;
-    vyberIkon.style.display = 'none';
-    previewBod?.remove();
-    lastClickPos = null;
-  }
+  vyberIkon.style.display = 'none';
+
+  tempIcon?.remove();
+  tempIcon = document.createElement('img');
+  tempIcon.src = e.target.src;
+  tempIcon.className = 'bod';
+  tempIcon.style.left = '50%';
+  tempIcon.style.top = '50%';
+  tempIcon.style.position = 'absolute';
+  tempIcon.style.transform = 'translate(-50%, -50%)';
+  tempIcon.style.zIndex = '5000';
+  tempIcon.style.touchAction = 'none';
+  tempIcon.draggable = false;
+
+  mapa.appendChild(tempIcon);
+
+  let isDragging = false;
+  let dragStartX, dragStartY;
+
+  tempIcon.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    dragStartX = e.touches[0].clientX - tempIcon.offsetLeft;
+    dragStartY = e.touches[0].clientY - tempIcon.offsetTop;
+    e.preventDefault();
+  });
+
+  mapa.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    let x = e.touches[0].clientX - dragStartX;
+    let y = e.touches[0].clientY - dragStartY;
+    tempIcon.style.left = x + 'px';
+    tempIcon.style.top = y + 'px';
+  });
+
+  mapa.addEventListener('touchend', () => {
+    if (isDragging) {
+      const rect = mapa.getBoundingClientRect();
+      const x = (tempIcon.offsetLeft - rect.left - offsetX) / (rect.width * scale);
+      const y = (tempIcon.offsetTop - rect.top - offsetY) / (rect.height * scale);
+      push(bodyRef, { x, y, typ: e.target.dataset.typ });
+      tempIcon.remove();
+      tempIcon = null;
+      isDragging = false;
+    }
+  }, { once: true });
 });
 
 onChildAdded(bodyRef, (data) => {
