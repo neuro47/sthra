@@ -11,6 +11,25 @@
     touch-action: none;
     font-family: Arial, sans-serif;
   }
+  @media screen and (orientation: portrait) {
+    body::before {
+      content: 'Prosím otočte zařízení na šířku';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      color: #fff;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+    }
+    #mapa-container, #plus-container, #vyber-ikon {
+      display: none !important;
+    }
+  }
   #mapa-container {
     width: 100vw;
     height: 100vh;
@@ -96,7 +115,7 @@
 
 <div id="plus-container">
   <div id="plus">+</div>
-  <div id="verze">Verze 1.2</div>
+  <div id="verze">Verze 1.3</div>
 </div>
 
 <div id="vyber-ikon">
@@ -107,7 +126,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, push, remove, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEq2j2FUqRXDazNKstJY9ZmrrJZm6uQHc",
@@ -127,8 +146,6 @@ const mapa = document.getElementById('mapa');
 const plus = document.getElementById('plus');
 const vyberIkon = document.getElementById('vyber-ikon');
 
-let addingMode = false;
-let tempIcon = null;
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
@@ -180,27 +197,24 @@ vyberIkon.addEventListener('click', (e) => {
   if (e.target.tagName !== 'IMG') return;
   vyberIkon.style.display = 'none';
 
-  tempIcon?.remove();
-  tempIcon = document.createElement('img');
-  tempIcon.src = e.target.src;
-  tempIcon.className = 'bod';
-  tempIcon.style.left = '50%';
-  tempIcon.style.top = '50%';
-  tempIcon.style.position = 'absolute';
-  tempIcon.style.transform = 'translate(-50%, -50%)';
-  tempIcon.style.zIndex = '5000';
-  tempIcon.style.touchAction = 'none';
-  tempIcon.draggable = false;
+  const icon = document.createElement('img');
+  icon.src = e.target.src;
+  icon.className = 'bod';
+  icon.style.left = '50%';
+  icon.style.top = '50%';
+  icon.style.transform = 'translate(-50%, -50%)';
+  icon.draggable = false;
+  icon.style.zIndex = '5000';
 
-  mapa.appendChild(tempIcon);
+  mapa.appendChild(icon);
 
   let isDragging = false;
   let dragStartX, dragStartY;
 
-  tempIcon.addEventListener('touchstart', (e) => {
+  icon.addEventListener('touchstart', (e) => {
     isDragging = true;
-    dragStartX = e.touches[0].clientX - tempIcon.offsetLeft;
-    dragStartY = e.touches[0].clientY - tempIcon.offsetTop;
+    dragStartX = e.touches[0].clientX - icon.offsetLeft;
+    dragStartY = e.touches[0].clientY - icon.offsetTop;
     e.preventDefault();
   });
 
@@ -208,18 +222,17 @@ vyberIkon.addEventListener('click', (e) => {
     if (!isDragging) return;
     let x = e.touches[0].clientX - dragStartX;
     let y = e.touches[0].clientY - dragStartY;
-    tempIcon.style.left = x + 'px';
-    tempIcon.style.top = y + 'px';
+    icon.style.left = x + 'px';
+    icon.style.top = y + 'px';
   });
 
   mapa.addEventListener('touchend', () => {
     if (isDragging) {
       const rect = mapa.getBoundingClientRect();
-      const x = (tempIcon.offsetLeft - rect.left - offsetX) / (rect.width * scale);
-      const y = (tempIcon.offsetTop - rect.top - offsetY) / (rect.height * scale);
+      const x = (icon.offsetLeft - rect.left - offsetX) / (rect.width * scale);
+      const y = (icon.offsetTop - rect.top - offsetY) / (rect.height * scale);
       push(bodyRef, { x, y, typ: e.target.dataset.typ });
-      tempIcon.remove();
-      tempIcon = null;
+      icon.remove();
       isDragging = false;
     }
   }, { once: true });
